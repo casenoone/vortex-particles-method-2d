@@ -7,7 +7,7 @@ import taichi as ti
 
 ti.init(arch=ti.gpu)
 
-eps = 0.01
+eps = 0.00001
 dt = 0.02
 
 numberOfParticles = 20000
@@ -60,20 +60,8 @@ def init_gpositions():
 
 
 
-#初始化温度场,暂时假设温度值 = 某点的坐标值
-@ti.kernel
-def init_TGrid():
 
-    for j in range(t_resolutionY):
-        for i in range(t_resolutionX):
-            p1 = i * gridSpacing
-            p2 = j * gridSpacing
-
-            TGrid[i, j][0] = (grid_positions[i, j][1]) * ti.random() * 0.8
-            if(p2 <0.28):
-                TGrid[i, j][0] = 0.05
-
-#初始化温度场,暂时假设温度值 = 某点的坐标值
+#初始化温度场
 @ti.kernel
 def init_TGrid():
 
@@ -165,13 +153,13 @@ def compute_u_single(p, i):
     uv = ti.Vector([positions[i].y - p.y, p.x - positions[i].x])
     return vorticities[i][0] * uv / (r2 * math.pi) * 0.5 * (1.0 - ti.exp(-r2 / eps**2))
 
-
 @ti.func
-def compute_u_full(p):
-    u = ti.Vector([0.0, 0.0])
-    for i in range(numberOfParticles):
-        u += compute_u_single(p, i)
-    return u
+def compute_u_single_other(p, i):
+    r = (p - positions[i]).norm()
+    r2 = r**2
+    uv = ti.Vector([positions[i].y - p.y, p.x - positions[i].x])
+    return vorticities[i][0] * uv / (math.pi * (r2 + eps*ti.exp(-r/eps))) * 0.5 * (1.0 - ti.exp(-r / eps))
+
 
 
 @ti.func
@@ -180,7 +168,8 @@ def integrate_vortex():
         v = ti.Vector([0.0, 0.0])
         for j in range(numberOfParticles):
             if i != j:
-                v += compute_u_single(positions[i], j)
+                #v += compute_u_single(positions[i], j)
+                v+=compute_u_single_other(positions[i], j)
         new_pos[i] = positions[i] + dt * v
 
     for i in range(numberOfParticles):
